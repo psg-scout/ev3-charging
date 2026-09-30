@@ -128,7 +128,7 @@ body.has-banner main{top:calc(var(--top) + var(--sat) + 68px)}
 .npin{width:22px;height:22px;border-radius:50%;background:rgba(226,232,240,.92);color:#334155;border:2px solid #94a3b8;font-size:11px;line-height:18px;text-align:center;box-shadow:0 0 0 2px rgba(0,0,0,.45)}
 .badge.osm{background:#64748b}
 .nearby-ctl{position:absolute;z-index:500;top:12px;right:calc(12px + var(--sar));display:flex;gap:6px}
-.nearby-ctl button{min-height:44px;padding:8px 12px;border-radius:22px;border:1px solid #2f343c;background:#17191d;color:#f1f5f9;font:600 14px/1 inherit;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+.nearby-ctl button{min-height:44px;padding:8px 12px;border-radius:22px;border:1px solid #2f343c;background:#17191d;color:#f1f5f9;font-weight:600;font-size:14px;line-height:1;font-family:inherit;box-shadow:0 4px 14px rgba(0,0,0,.45)}
 .nearby-ctl button:disabled{opacity:.6}
 .nearby-ctl #nearbyBtn{background:var(--accent);border-color:var(--accent);color:#fff}
 .nearby-status{position:absolute;z-index:500;top:64px;left:calc(62px + var(--sal));right:calc(12px + var(--sar));padding:10px 12px;border-radius:12px;background:#17191d;color:#f1f5f9;border:1px solid #2f343c;font-size:13px;display:none;box-shadow:0 4px 14px rgba(0,0,0,.45)}
@@ -137,3 +137,55 @@ body.has-banner main{top:calc(var(--top) + var(--sat) + 68px)}
 .nearby-status.loading::before{content:"";display:inline-block;width:12px;height:12px;margin-right:8px;border:2px solid #94a3b8;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .dot.osm{background:#e2e8f0;border:2px solid #94a3b8}
+
+/* =====================  v4: icon set + floating glass tab bar  ===================== */
+:root{
+  --brand:#0b9e84;               /* teal accent (light UI) – matches app icon */
+  --brand-soft:rgba(11,158,132,.14);
+  --bar-h:62px;
+  --bar-b:max(8px, calc(var(--sab) - 12px));
+  --bar-off:calc(var(--bar-h) + var(--bar-b));
+  --glass:rgba(255,255,255,.62); --glass-line:rgba(15,23,42,.08); --glass-hi:rgba(255,255,255,.75);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --brand:#3ef0c4; --brand-soft:rgba(62,240,196,.14);
+    --glass:rgba(22,27,34,.58); --glass-line:rgba(255,255,255,.09); --glass-hi:rgba(255,255,255,.10); }
+}
+/* icons */
+.ic{width:20px;height:20px;flex:none;display:inline-block;vertical-align:-4px}
+.ic-inline{width:16px;height:16px;margin-right:6px;vertical-align:-3px}
+.btn .ic,.navbtn .ic,.logbtn .ic{margin-right:8px}
+.btn,.navbtn,.logbtn{display:flex;align-items:center;justify-content:center}
+.fab .ic{width:26px;height:26px}
+.del .ic{width:20px;height:20px}
+.pin span{display:flex}
+.pin .ic{width:15px;height:15px;color:#fff;vertical-align:0}
+.npin{display:flex;align-items:center;justify-content:center}
+.npin .ic{width:12px;height:12px;vertical-align:0;color:#334155}
+.nearby-ctl button{display:inline-flex;align-items:center;gap:6px}
+.nearby-ctl .ic{width:18px;height:18px}
+.banner .ic{width:22px;height:22px}
+#bannerX{display:flex;align-items:center;justify-content:center;min-width:40px}
+/* content scrolls under the floating bar */
+main{bottom:0}
+.tab{padding-bottom:calc(var(--bar-off) + 28px)}
+#tab-map{padding-bottom:0}
+.fab{bottom:calc(var(--bar-off) + 36px)}
+.legend{bottom:calc(var(--bar-off) + 36px)}
+#tab-map .leaflet-bottom{bottom:calc(var(--bar-off) + 6px)}
+.toast{bottom:calc(var(--bar-off) + 16px)}
+/* floating frosted-glass tab bar */
+.tabbar{left:calc(10px + var(--sal));right:calc(10px + var(--sar));bottom:var(--bar-b);height:var(--bar-h);padding:5px;
+  border-radius:31px;background:var(--glass);border:1px solid var(--glass-line);
+  -webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);
+  box-shadow:0 10px 30px rgba(0,0,0,.22), inset 0 1px 0 var(--glass-hi);display:grid;grid-template-columns:repeat(6,1fr);gap:2px;border-top:1px solid var(--glass-line)}
+.tabbar button{position:relative;border-radius:26px;min-height:0;height:100%;gap:2px;color:var(--muted);font:600 10.5px/1.1 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;letter-spacing:.01em;transition:color .2s}
+.tabbar .tab-ic{display:flex;filter:none;opacity:1;font-size:0}
+.tabbar .ic{width:24px;height:24px;transition:transform .2s}
+.tabbar button span{filter:none;opacity:1}
+.tabbar button.on{color:var(--brand);background:var(--brand-soft)}
+.tabbar button.on .ic{fill:currentColor;fill-opacity:.2;stroke-width:2}
+.tabbar button:active .ic{transform:scale(.9)}
+.tabbar button:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+.tabbar button.on span{filter:none;opacity:1}
+.tabbar .tab-lb{font-size:10.5px;line-height:1.1;font-weight:600;white-space:nowrap}

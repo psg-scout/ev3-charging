@@ -35,7 +35,7 @@ function navButtons(p) {
   const nav = state.settings.nav;
   if (nav === 'apple' || nav === 'google') {
     const [pri, alt, altName] = nav === 'apple' ? [a, g, 'Google Maps'] : [g, a, 'Apple Maps'];
-    return `<div class="nav nav-one"><a class="navbtn primary" data-nav="${nav}" ${pri}>🧭 Navigate</a><a class="navalt" data-nav="${nav === 'apple' ? 'google' : 'apple'}" ${alt}>or ${altName}</a></div>`;
+    return `<div class="nav nav-one"><a class="navbtn primary" data-nav="${nav}" ${pri}>${ico('navigation')}Navigate</a><a class="navalt" data-nav="${nav === 'apple' ? 'google' : 'apple'}" ${alt}>or ${altName}</a></div>`;
   }
   return `<div class="nav nav-two"><a class="navbtn apple" data-nav="apple" ${a}>Apple Maps</a><a class="navbtn google" data-nav="google" ${g}>Google Maps</a></div>`;
 }
@@ -45,7 +45,7 @@ const isCPS = c => /ChargePlace/i.test(c.network);
 const TITLES = { map: 'Map', chargers: 'Chargers', log: 'Log a charge', stats: 'Stats', plan: 'Planner', settings: 'Settings' };
 function showTab(name) {
   $$('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
-  $$('.tabbar button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  $$('.tabbar button').forEach(b => { const on = b.dataset.tab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   $('#title').textContent = TITLES[name];
   if (name === 'map' && map) setTimeout(() => map.invalidateSize(), 50);
   if (name === 'stats') renderStats();
@@ -64,10 +64,10 @@ function chargerPopup(c) {
     <p><b>Speed:</b> ${esc(c.speed)}</p>
     <p><b>Price:</b> ${esc(c.priceText)}<br><span class="muted small">${esc(window.EV3_PRICE_NOTE)}</span></p>
     <p>${esc(c.notes)}</p>
-    ${isCPS(c) ? `<p class="small cps-warn">⚠︎ ${esc(window.EV3_CPS_NOTE)}</p>` : ''}
+    ${isCPS(c) ? `<p class="small cps-warn">${ico('triangle-alert', 'ic-inline')}${esc(window.EV3_CPS_NOTE)}</p>` : ''}
     <p class="muted small">${esc(c.addr)}</p>
     ${navButtons(c)}
-    <a class="logbtn" href="#log" data-logat="${c.id}">＋ Log a charge here</a>`;
+    <a class="logbtn" href="#log" data-logat="${c.id}">${ico('plus')}Log a charge here</a>`;
 }
 function initMap() {
   if (!window.L) { $('#map').innerHTML = '<p class="center muted" style="padding:40px">Map library failed to load (offline?). The rest of the app still works.</p>'; return; }
@@ -80,12 +80,12 @@ function initMap() {
   map.on('popupopen', () => { const st = $('#nearbyStatus'); if (st && !st.classList.contains('loading')) st.classList.remove('show'); });
   initNearbyControl();
   const pts = [];
-  const emo = { home: '🏠', work: '🎙️', gym: '🏋️' };
+  const emo = { home: 'house', work: 'mic', gym: 'dumbbell' };
   PLACES.forEach(p => { pts.push([p.lat, p.lng]);
-    markers[p.id] = L.marker([p.lat, p.lng], { icon: pinIcon('place', emo[p.kind] || '📍'), title: p.name, zIndexOffset: 500 }).addTo(map)
+    markers[p.id] = L.marker([p.lat, p.lng], { icon: pinIcon('place', ico(emo[p.kind] || 'map-pin', '', 2.25)), title: p.name, zIndexOffset: 500 }).addTo(map)
       .bindPopup(() => `<h4>${esc(p.name)}</h4><p>${esc(p.note)}</p>${navButtons(p)}`, POPUP_OPTS); });
   CHARGERS.forEach(c => { pts.push([c.lat, c.lng]);
-    markers[c.id] = L.marker([c.lat, c.lng], { icon: pinIcon(c.type, c.type === 'rapid' ? '⚡' : '🔌'), title: c.name }).addTo(map).bindPopup(() => chargerPopup(c), POPUP_OPTS); });
+    markers[c.id] = L.marker([c.lat, c.lng], { icon: pinIcon(c.type, ico(c.type === 'rapid' ? 'zap' : 'plug', '', 2.25)), title: c.name }).addTo(map).bindPopup(() => chargerPopup(c), POPUP_OPTS); });
   map.fitBounds(pts, { padding: [30, 30] });
   $('#locateBtn').addEventListener('click', () => locate());
 }
@@ -119,7 +119,7 @@ function setNearbyStatus(text, kind) { const el = $('#nearbyStatus'); if (!el) r
   if (text && kind !== 'loading') setNearbyStatus._t = setTimeout(() => el.classList.remove('show'), 6000); }
 function initNearbyControl() {
   const box = document.createElement('div'); box.className = 'nearby-ctl';
-  box.innerHTML = `<button id="nearbyBtn" type="button">🔍 Find chargers here</button><button id="nearMeBtn" type="button" aria-label="Find chargers near me">📍 Near me</button><button id="nearbyClear" type="button" class="hidden" aria-label="Clear results">✕</button>`;
+  box.innerHTML = `<button id="nearbyBtn" type="button">${ico('search')}Find chargers here</button><button id="nearMeBtn" type="button" aria-label="Find chargers near me">${ico('locate')}Near me</button><button id="nearbyClear" type="button" class="hidden" aria-label="Clear results">${ico('x', '', 2.25)}</button>`;
   $('#tab-map').appendChild(box);
   const st = document.createElement('div'); st.id = 'nearbyStatus'; st.className = 'nearby-status'; st.setAttribute('role', 'status'); $('#tab-map').appendChild(st);
   $('#nearbyBtn').addEventListener('click', () => searchNearby(map.getBounds()));
@@ -148,7 +148,7 @@ function nearbyPopup(e) {
     <p><span class="badge osm">OSM</span>${op.length ? esc(op.join(' · ')) : '<span class="muted">Operator not tagged</span>'}</p>
     <p><b>Sockets:</b> ${socks.length ? socks.join('<br>') : '<span class="muted">not tagged</span>'}</p>
     ${extra.length ? `<p class="small">${extra.join('<br>')}</p>` : ''}${addr ? `<p class="muted small">${esc(addr)}</p>` : ''}
-    <p class="small cps-warn">ℹ︎ ${esc(NEARBY_NOTE)}</p>
+    <p class="small cps-warn">${ico('info', 'ic-inline')}${esc(NEARBY_NOTE)}</p>
     ${navButtons(e)}`;
 }
 // Hedged requests: start the main server; if it hasn't answered after 6 s, also try the next mirror; first valid answer wins.
@@ -180,7 +180,7 @@ async function searchNearby(bounds) {
     const capped = els.length > NEARBY_MAX, list = els.slice(0, NEARBY_MAX);
     nearbyLayer.clearLayers(); let shown = 0;
     list.forEach(e => { if (CHARGERS.some(c => haversineKm(c, e) < 0.04)) return; // already a curated pin
-      shown++; L.marker([e.lat, e.lng], { icon: L.divIcon({ className: '', html: '<div class="npin">⚡</div>', iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -10] }), title: (e.tags && e.tags.name) || 'Charging station (OSM)', zIndexOffset: -100 })
+      shown++; L.marker([e.lat, e.lng], { icon: L.divIcon({ className: '', html: `<div class="npin">${ico('zap', '', 2.5)}</div>`, iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -10] }), title: (e.tags && e.tags.name) || 'Charging station (OSM)', zIndexOffset: -100 })
         .addTo(nearbyLayer).bindPopup(() => nearbyPopup(e), POPUP_OPTS); });
     $('#nearbyClear').classList.toggle('hidden', !shown);
     if (!els.length) setNearbyStatus('No public chargers tagged in this area. Try zooming out a little or check Zapmap.', 'warn');
@@ -260,7 +260,7 @@ function renderHistory() {
       <div class="small muted">${new Date(l.date + 'T12:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</div>
       <div class="small">${l.kwh} kWh · ${gbp(l.cost)} · ${l.kwh ? (l.cost / l.kwh * 100).toFixed(1) : '–'}p/kWh</div>
       <div class="small muted">${l.start != null ? l.start + '%' : '?'} → ${l.end != null ? l.end + '%' : '?'}${l.odo != null ? ' · ' + l.odo.toLocaleString('en-GB') + ' mi' : ''}</div>
-    </div><button class="del" data-del="${l.id}" aria-label="Delete">🗑</button></div></li>`).join('') : '<li class="muted center">No charges logged yet.</li>';
+    </div><button class="del" data-del="${l.id}" aria-label="Delete">${ico('trash-2')}</button></div></li>`).join('') : '<li class="muted center">No charges logged yet.</li>';
 }
 $('#history').addEventListener('click', e => { const b = e.target.closest('[data-del]'); if (!b) return;
   if (!confirm('Delete this charge?')) return; state.logs = state.logs.filter(l => l.id !== b.dataset.del); save(); renderAll(); toast('Deleted'); });
@@ -384,7 +384,7 @@ function renderBanner() {
   if (bannerDismissed || !est || !(nx.due || nx.soon)) { hide(); return; }
   document.body.classList.add('has-banner'); if (map) setTimeout(() => map.invalidateSize(), 50);
   b.className = 'banner' + (nx.due ? '' : ' soon');
-  b.innerHTML = `<span>${nx.due ? '🔌 Due to charge' : '⏰ Charge soon'} · ~${Math.round(est.pct)}%</span><button id="bannerPlan">Plan</button><button id="bannerX" aria-label="Dismiss">✕</button>`;
+  b.innerHTML = `${ico(nx.due ? 'plug-zap' : 'alarm-clock')}<span>${nx.due ? 'Due to charge' : 'Charge soon'} · ~${Math.round(est.pct)}%</span><button id="bannerPlan">Plan</button><button id="bannerX" aria-label="Dismiss">${ico('x', '', 2.25)}</button>`;
   $('#bannerPlan').onclick = () => showTab('plan'); $('#bannerX').onclick = () => { bannerDismissed = true; hide(); };
 }
 $('#manualForm').addEventListener('submit', e => { e.preventDefault(); const p = parseFloat($('#mPct').value); if (isNaN(p)) return;
@@ -435,7 +435,8 @@ $('#resetBtn').addEventListener('click', () => { if (!confirm('Erase all charges
 
 // ---------- boot ----------
 function renderAll() { renderChargers(); renderHistory(); renderBanner(); if ($('#tab-stats').classList.contains('active')) renderStats(); renderPlan(); }
-$('#cpsNote').textContent = '⚠︎ ' + window.EV3_CPS_NOTE; $('#priceNote').textContent = window.EV3_PRICE_NOTE + ' Pins geocoded via OpenStreetMap / postcodes.io.';
+$('#cpsNote').innerHTML = ico('triangle-alert', 'ic-inline') + esc(window.EV3_CPS_NOTE); $('#priceNote').textContent = window.EV3_PRICE_NOTE + ' Pins geocoded via OpenStreetMap / postcodes.io.';
+$$('i[data-ic]').forEach(el => { el.outerHTML = ico(el.dataset.ic); });
 fillChargerSelect(); fillSettings();
 $('#sNav').addEventListener('change', e => { state.settings.nav = e.target.value; save(); renderChargers(); if (map) map.closePopup(); toast('Navigation app: ' + e.target.selectedOptions[0].text); }); resetLogForm(); initMap(); renderAll();
 const start = location.hash.slice(1); if (TITLES[start]) showTab(start);

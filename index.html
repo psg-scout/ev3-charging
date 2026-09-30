@@ -5,14 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>EV3 Charging</title>
 <meta name="description" content="Charging planner for a Kia EV3 GT-Line Long Range (81.4 kWh)">
-<meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#061015" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f5f7fb" media="(prefers-color-scheme: light)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="EV3">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <link rel="stylesheet" href="styles.css">
@@ -28,7 +30,7 @@
   <!-- MAP -->
   <section id="tab-map" class="tab active" aria-label="Map">
     <div id="map"></div>
-    <button id="locateBtn" class="fab" aria-label="Locate me">◎</button>
+    <button id="locateBtn" class="fab" aria-label="Locate me"><i data-ic="locate-fixed"></i></button>
     <div class="legend"><span class="dot rapid"></span>Rapid <span class="dot ac"></span>AC <span class="dot place"></span>Places <span class="dot osm"></span>OSM</div>
   </section>
 
@@ -108,8 +110,8 @@
     <div class="card">
       <h3>Reminder</h3>
       <p class="muted small">iPhone web notifications need a push server, so this app shows an in-app “due to charge” banner instead. For a real alert, add a weekly calendar reminder:</p>
-      <button id="icsBtn" class="btn">📅 Add weekly Monday reminder (.ics)</button>
-      <a class="btn ghost" href="calendar/ev3-monday-charge.ics" download>Static .ics (Mon 08:30)</a>
+      <button id="icsBtn" class="btn"><i data-ic="calendar-plus"></i>Add weekly Monday reminder (.ics)</button>
+      <a class="btn ghost" href="calendar/ev3-monday-charge.ics" download><i data-ic="alarm-clock"></i>Static .ics (Mon 08:30)</a>
     </div>
   </section>
 
@@ -144,25 +146,26 @@
     <div class="card">
       <h2>Backup</h2>
       <p class="muted small">Data is stored only on this device (localStorage). Export regularly.</p>
-      <button id="exportBtn" class="btn">⬇︎ Export JSON</button>
-      <label class="btn ghost filebtn">⬆︎ Import JSON<input type="file" id="importFile" accept="application/json,.json"></label>
-      <button id="resetBtn" class="btn danger">Erase all data</button>
+      <button id="exportBtn" class="btn"><i data-ic="download"></i>Export JSON</button>
+      <label class="btn ghost filebtn"><i data-ic="upload"></i>Import JSON<input type="file" id="importFile" accept="application/json,.json"></label>
+      <button id="resetBtn" class="btn danger"><i data-ic="trash-2"></i>Erase all data</button>
     </div>
     <p class="muted small center">Kia EV3 GT-Line Long Range · 81.4 kWh · v1</p>
   </section>
 </main>
 
-<nav class="tabbar" role="tablist">
-  <button data-tab="map" class="on" aria-label="Map"><span>🗺️</span>Map</button>
-  <button data-tab="chargers" aria-label="Chargers"><span>🔌</span>Chargers</button>
-  <button data-tab="log" aria-label="Log"><span>➕</span>Log</button>
-  <button data-tab="stats" aria-label="Stats"><span>📊</span>Stats</button>
-  <button data-tab="plan" aria-label="Plan"><span>🔋</span>Plan</button>
-  <button data-tab="settings" aria-label="Settings"><span>⚙️</span>Settings</button>
+<nav class="tabbar" role="tablist" aria-label="Sections">
+  <button data-tab="map" role="tab" class="on" aria-selected="true"><span class="tab-ic"><i data-ic="map"></i></span><span class="tab-lb">Map</span></button>
+  <button data-tab="chargers" role="tab" aria-selected="false"><span class="tab-ic"><i data-ic="plug-zap"></i></span><span class="tab-lb">Chargers</span></button>
+  <button data-tab="log" role="tab" aria-selected="false"><span class="tab-ic"><i data-ic="circle-plus"></i></span><span class="tab-lb">Log</span></button>
+  <button data-tab="stats" role="tab" aria-selected="false"><span class="tab-ic"><i data-ic="chart-column-big"></i></span><span class="tab-lb">Stats</span></button>
+  <button data-tab="plan" role="tab" aria-selected="false"><span class="tab-ic"><i data-ic="battery-charging"></i></span><span class="tab-lb">Plan</span></button>
+  <button data-tab="settings" role="tab" aria-selected="false"><span class="tab-ic"><i data-ic="settings"></i></span><span class="tab-lb">Settings</span></button>
 </nav>
 <div id="toast" class="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="icons-lucide.js"></script>
 <script src="data.js"></script>
 <script src="app.js"></script>
 </body>
