@@ -1,9 +1,9 @@
 // EV3 Charging service worker: offline app shell + cached Leaflet + small map-tile cache.
-const VERSION = 'ev3-v2';
+const VERSION = 'ev3-v3';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'data.js', 'manifest.json',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'calendar/ev3-monday-charge.ics'];
 const LIBS = ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'];
-const TILE_CACHE = 'ev3-tiles', TILE_MAX = 400;
+const TILE_CACHE = 'ev3-tiles-v3', TILE_MAX = 400;
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(async c => {

@@ -5,3 +5,8 @@ Files: index.html, styles.css, app.js, data.js (charger data + coordinates), sw.
 Data lives in localStorage on the device; use Settings → Export JSON to back up.
 Local test: `python3 -m http.server 8080` then open http://localhost:8080/.
 Coordinates: OpenStreetMap (Overpass/Nominatim), postcodes.io centroids, PlugShare (Eastside). Prices: check in app; last checked Sep 2026.
+
+## v3 (Sep 2026)
+- Map is always dark monochrome: OSM tiles with a CSS `grayscale invert` filter (CARTO dark_all now returns an "API KEY REQUIRED" placeholder without a key).
+- Apple Maps / Google Maps driving links on every popup and charger row; Settings → "Default navigation app" (Ask / Apple / Google).
+- "Find chargers here" / "Near me": UK-wide public chargers from OpenStreetMap Overpass (no key; mirrors: overpass-api.de, overpass.kumi.systems, maps.mail.ru), capped at 200, max 40 km view.

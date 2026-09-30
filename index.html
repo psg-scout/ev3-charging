@@ -29,7 +29,7 @@
   <section id="tab-map" class="tab active" aria-label="Map">
     <div id="map"></div>
     <button id="locateBtn" class="fab" aria-label="Locate me">◎</button>
-    <div class="legend"><span class="dot rapid"></span>Rapid <span class="dot ac"></span>AC <span class="dot place"></span>Places</div>
+    <div class="legend"><span class="dot rapid"></span>Rapid <span class="dot ac"></span>AC <span class="dot place"></span>Places <span class="dot osm"></span>OSM</div>
   </section>
 
   <!-- CHARGERS -->
@@ -136,6 +136,9 @@
         </label>
         <label>Reminder time <input type="time" id="sTime" required></label>
       </div>
+      <label>Default navigation app
+        <select id="sNav"><option value="ask">Ask (show both)</option><option value="apple">Apple Maps</option><option value="google">Google Maps</option></select>
+      </label>
       <button class="btn primary">Save settings</button>
     </form>
     <div class="card">

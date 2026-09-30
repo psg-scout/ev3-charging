@@ -3,7 +3,7 @@
 const CHARGERS = window.EV3_CHARGERS, PLACES = window.EV3_PLACES;
 const KEY = 'ev3.v1';
 const DEFAULTS = { battery: 81.4, eff: 3.5, winterEff: 3.0, season: 'auto', weeklyMiles: 150,
-  low: 30, target: 80, pref: 'crownpoint', time: '08:30' };
+  low: 30, target: 80, pref: 'crownpoint', time: '08:30', nav: 'ask' };
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const gbp = n => '£' + (Number(n) || 0).toFixed(2);
@@ -27,7 +27,18 @@ function isWinter(d = new Date()) { const s = state.settings.season; if (s === '
 const effNow = () => isWinter() ? +state.settings.winterEff : +state.settings.eff;
 function haversineKm(a, b) { const R = 6371, r = x => x * Math.PI / 180; const dLa = r(b.lat - a.lat), dLo = r(b.lng - a.lng);
   const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); }
-const dirUrl = p => `https://maps.apple.com/?daddr=${p.lat},${p.lng}`;
+const appleUrl = p => `https://maps.apple.com/?daddr=${p.lat},${p.lng}&dirflg=d`;
+const googleUrl = p => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving`;
+// Navigation buttons honour the "Default navigation app" setting (ask / apple / google).
+function navButtons(p) {
+  const a = `href="${esc(appleUrl(p))}" target="_blank" rel="noopener noreferrer"`, g = `href="${esc(googleUrl(p))}" target="_blank" rel="noopener noreferrer"`;
+  const nav = state.settings.nav;
+  if (nav === 'apple' || nav === 'google') {
+    const [pri, alt, altName] = nav === 'apple' ? [a, g, 'Google Maps'] : [g, a, 'Apple Maps'];
+    return `<div class="nav nav-one"><a class="navbtn primary" data-nav="${nav}" ${pri}>🧭 Navigate</a><a class="navalt" data-nav="${nav === 'apple' ? 'google' : 'apple'}" ${alt}>or ${altName}</a></div>`;
+  }
+  return `<div class="nav nav-two"><a class="navbtn apple" data-nav="apple" ${a}>Apple Maps</a><a class="navbtn google" data-nav="google" ${g}>Google Maps</a></div>`;
+}
 const isCPS = c => /ChargePlace/i.test(c.network);
 
 // ---------- tabs ----------
@@ -44,7 +55,8 @@ function showTab(name) {
 $$('.tabbar button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 
 // ---------- map ----------
-let map = null, meMarker = null, meCircle = null; const markers = {};
+const POPUP_OPTS = { maxWidth: 280, autoPanPaddingTopLeft: [10, 125], autoPanPaddingBottomRight: [10, 70] };
+let map = null, meMarker = null, meCircle = null, nearbyLayer = null; const markers = {};
 function pinIcon(cls, emoji) { return L.divIcon({ className: '', html: `<div class="pin ${cls}"><span>${emoji}</span></div>`, iconSize: [30, 30], iconAnchor: [15, 30], popupAnchor: [0, -28] }); }
 function chargerPopup(c) {
   return `<h4>${esc(c.name)}</h4>
@@ -52,27 +64,32 @@ function chargerPopup(c) {
     <p><b>Speed:</b> ${esc(c.speed)}</p>
     <p><b>Price:</b> ${esc(c.priceText)}<br><span class="muted small">${esc(window.EV3_PRICE_NOTE)}</span></p>
     <p>${esc(c.notes)}</p>
-    ${isCPS(c) ? `<p class="small" style="color:#c2410c">⚠︎ ${esc(window.EV3_CPS_NOTE)}</p>` : ''}
+    ${isCPS(c) ? `<p class="small cps-warn">⚠︎ ${esc(window.EV3_CPS_NOTE)}</p>` : ''}
     <p class="muted small">${esc(c.addr)}</p>
-    <a class="popbtn" href="${dirUrl(c)}" target="_blank" rel="noopener">Directions</a>
-    <a class="popbtn" href="#log" data-logat="${c.id}" style="background:#16a34a">Log here</a>`;
+    ${navButtons(c)}
+    <a class="logbtn" href="#log" data-logat="${c.id}">＋ Log a charge here</a>`;
 }
 function initMap() {
   if (!window.L) { $('#map').innerHTML = '<p class="center muted" style="padding:40px">Map library failed to load (offline?). The rest of the app still works.</p>'; return; }
   map = L.map('map', { zoomControl: true, tap: true });
+  // CARTO dark_all now serves an "API KEY REQUIRED" placeholder without a key, so we use standard OSM tiles
+  // rendered dark + monochrome via a CSS filter on the tile pane (see styles.css).
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' }).addTo(map);
+  nearbyLayer = L.layerGroup().addTo(map);
+  map.on('popupopen', () => { const st = $('#nearbyStatus'); if (st && !st.classList.contains('loading')) st.classList.remove('show'); });
+  initNearbyControl();
   const pts = [];
   const emo = { home: '🏠', work: '🎙️', gym: '🏋️' };
   PLACES.forEach(p => { pts.push([p.lat, p.lng]);
     markers[p.id] = L.marker([p.lat, p.lng], { icon: pinIcon('place', emo[p.kind] || '📍'), title: p.name, zIndexOffset: 500 }).addTo(map)
-      .bindPopup(`<h4>${esc(p.name)}</h4><p>${esc(p.note)}</p><a class="popbtn" href="${dirUrl(p)}" target="_blank" rel="noopener">Directions</a>`); });
+      .bindPopup(() => `<h4>${esc(p.name)}</h4><p>${esc(p.note)}</p>${navButtons(p)}`, POPUP_OPTS); });
   CHARGERS.forEach(c => { pts.push([c.lat, c.lng]);
-    markers[c.id] = L.marker([c.lat, c.lng], { icon: pinIcon(c.type, c.type === 'rapid' ? '⚡' : '🔌'), title: c.name }).addTo(map).bindPopup(chargerPopup(c), { maxWidth: 280 }); });
+    markers[c.id] = L.marker([c.lat, c.lng], { icon: pinIcon(c.type, c.type === 'rapid' ? '⚡' : '🔌'), title: c.name }).addTo(map).bindPopup(() => chargerPopup(c), POPUP_OPTS); });
   map.fitBounds(pts, { padding: [30, 30] });
-  $('#locateBtn').addEventListener('click', locate);
+  $('#locateBtn').addEventListener('click', () => locate());
 }
-function locate() {
+function locate(then) {
   if (!navigator.geolocation) return toast('Location not available');
   toast('Finding you…');
   navigator.geolocation.getCurrentPosition(pos => {
@@ -82,6 +99,7 @@ function locate() {
     else { meMarker.setLatLng(ll); meCircle.setLatLng(ll).setRadius(pos.coords.accuracy); }
     map.flyTo(ll, Math.max(map.getZoom(), 14));
     const near = CHARGERS.map(c => ({ c, d: haversineKm({ lat: ll[0], lng: ll[1] }, c) })).sort((a, b) => a.d - b.d)[0];
+    if (typeof then === 'function') return then(ll, pos.coords.accuracy);
     toast(`Nearest: ${near.c.name} (${near.d.toFixed(1)} km)`);
   }, err => toast('Location error: ' + (err.message || err.code)), { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
 }
@@ -89,6 +107,87 @@ document.addEventListener('click', e => {
   const a = e.target.closest('[data-logat]'); if (a) { e.preventDefault(); $('#fCharger').value = a.dataset.logat; onChargerChange(); showTab('log'); return; }
   const m = e.target.closest('[data-showmap]'); if (m) { showTab('map'); const mk = markers[m.dataset.showmap]; if (mk && map) setTimeout(() => { map.setView(mk.getLatLng(), 16); mk.openPopup(); }, 120); }
 });
+
+// ---------- UK-wide "chargers near me" (OpenStreetMap Overpass, no key) ----------
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+const NEARBY_MAX = 200, NEARBY_MAX_SPAN_KM = 40;
+const NEARBY_NOTE = 'Community data, may be incomplete; check Zapmap for live status.';
+const SOCKETS = { type2: 'Type 2', type2_cable: 'Type 2 (tethered)', type2_combo: 'CCS2', chademo: 'CHAdeMO', type1: 'Type 1', type1_combo: 'CCS1',
+  tesla_supercharger: 'Tesla Supercharger', tesla_supercharger_ccs: 'Tesla (CCS)', tesla_destination: 'Tesla Destination', bs1363: 'UK 3-pin', schuko: 'Schuko', cee_blue: 'CEE blue' };
+let nearbySeq = 0;
+function setNearbyStatus(text, kind) { const el = $('#nearbyStatus'); if (!el) return; el.textContent = text || ''; el.className = 'nearby-status' + (text ? ' show' : '') + (kind ? ' ' + kind : ''); clearTimeout(setNearbyStatus._t);
+  if (text && kind !== 'loading') setNearbyStatus._t = setTimeout(() => el.classList.remove('show'), 6000); }
+function initNearbyControl() {
+  const box = document.createElement('div'); box.className = 'nearby-ctl';
+  box.innerHTML = `<button id="nearbyBtn" type="button">🔍 Find chargers here</button><button id="nearMeBtn" type="button" aria-label="Find chargers near me">📍 Near me</button><button id="nearbyClear" type="button" class="hidden" aria-label="Clear results">✕</button>`;
+  $('#tab-map').appendChild(box);
+  const st = document.createElement('div'); st.id = 'nearbyStatus'; st.className = 'nearby-status'; st.setAttribute('role', 'status'); $('#tab-map').appendChild(st);
+  $('#nearbyBtn').addEventListener('click', () => searchNearby(map.getBounds()));
+  $('#nearMeBtn').addEventListener('click', () => { setNearbyStatus('Finding your location…', 'loading');
+    locate(ll => { const bb = L.latLng(ll).toBounds(8000); map.fitBounds(bb); searchNearby(bb); }); });
+  $('#nearbyClear').addEventListener('click', () => { nearbyLayer.clearLayers(); $('#nearbyClear').classList.add('hidden'); setNearbyStatus(''); });
+}
+function socketLines(t) {
+  const out = [];
+  Object.keys(t).forEach(k => { const m = k.match(/^socket:([a-z0-9_]+)$/); if (!m) return;
+    const name = SOCKETS[m[1]] || m[1].replace(/_/g, ' '), cnt = t[k], outp = t[`socket:${m[1]}:output`];
+    out.push(`${esc(name)}${/^\d+$/.test(cnt) ? ' × ' + esc(cnt) : ''}${outp ? ' · ' + esc(outp) : ''}`); });
+  return out;
+}
+function nearbyPopup(e) {
+  const t = e.tags || {}, name = t.name || t.brand || t.operator || t.network || 'Charging station';
+  const op = [t.operator, t.network && t.network !== t.operator ? t.network : null, t.brand && ![t.operator, t.network].includes(t.brand) ? t.brand : null].filter(Boolean);
+  const socks = socketLines(t), extra = [];
+  if (t.capacity) extra.push(`Bays: ${esc(t.capacity)}`);
+  if (t.fee) extra.push(`Fee: ${esc(t.fee)}`);
+  if (t.charge) extra.push(`Price: ${esc(t.charge)}`);
+  if (t.access && t.access !== 'yes') extra.push(`Access: ${esc(t.access)}`);
+  if (t.opening_hours) extra.push(`Hours: ${esc(t.opening_hours)}`);
+  const addr = [t['addr:street'], t['addr:city'], t['addr:postcode']].filter(Boolean).join(', ');
+  return `<h4>${esc(name)}</h4>
+    <p><span class="badge osm">OSM</span>${op.length ? esc(op.join(' · ')) : '<span class="muted">Operator not tagged</span>'}</p>
+    <p><b>Sockets:</b> ${socks.length ? socks.join('<br>') : '<span class="muted">not tagged</span>'}</p>
+    ${extra.length ? `<p class="small">${extra.join('<br>')}</p>` : ''}${addr ? `<p class="muted small">${esc(addr)}</p>` : ''}
+    <p class="small cps-warn">ℹ︎ ${esc(NEARBY_NOTE)}</p>
+    ${navButtons(e)}`;
+}
+// Hedged requests: start the main server; if it hasn't answered after 6 s, also try the next mirror; first valid answer wins.
+function overpassFetch(q) {
+  return new Promise((resolve, reject) => {
+    const ctrls = [], errs = []; let done = false, started = 0, hedge;
+    const finish = (ok, v) => { if (done) return; done = true; clearTimeout(hedge); ctrls.forEach(c => c.abort()); ok ? resolve(v) : reject(v); };
+    const next = () => { if (done || started >= OVERPASS.length) return; const url = OVERPASS[started++], ac = new AbortController(); ctrls.push(ac);
+      const timer = setTimeout(() => ac.abort(), 25000);
+      fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ac.signal })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(j => { if (!Array.isArray(j.elements)) throw new Error('Bad response'); finish(true, j); })
+        .catch(err => { errs.push(err); if (started < OVERPASS.length) { clearTimeout(hedge); next(); } else if (errs.length === OVERPASS.length) finish(false, errs[errs.length - 1]); })
+        .finally(() => clearTimeout(timer));
+      clearTimeout(hedge); hedge = setTimeout(next, 6000); };
+    next();
+  });
+}
+async function searchNearby(bounds) {
+  const b = bounds.pad ? bounds : L.latLngBounds(bounds), sw = b.getSouthWest(), ne = b.getNorthEast();
+  const spanKm = Math.max(haversineKm({ lat: sw.lat, lng: sw.lng }, { lat: sw.lat, lng: ne.lng }), haversineKm({ lat: sw.lat, lng: sw.lng }, { lat: ne.lat, lng: sw.lng }));
+  if (spanKm > NEARBY_MAX_SPAN_KM) { setNearbyStatus(`Zoom in to search – view is ~${Math.round(spanKm)} km wide (max ${NEARBY_MAX_SPAN_KM} km).`, 'warn'); return; }
+  const seq = ++nearbySeq, btn = $('#nearbyBtn'); btn.disabled = true; setNearbyStatus('Searching OpenStreetMap for chargers…', 'loading');
+  const bbox = [sw.lat, sw.lng, ne.lat, ne.lng].map(x => x.toFixed(5)).join(',');
+  const q = `[out:json][timeout:25];nwr["amenity"="charging_station"](${bbox});out center tags ${NEARBY_MAX + 1};`;
+  try {
+    const j = await overpassFetch(q); if (seq !== nearbySeq) return;
+    const els = j.elements.map(e => ({ ...e, lat: e.lat ?? e.center?.lat, lng: e.lon ?? e.center?.lon })).filter(e => isFinite(e.lat) && isFinite(e.lng));
+    const capped = els.length > NEARBY_MAX, list = els.slice(0, NEARBY_MAX);
+    nearbyLayer.clearLayers(); let shown = 0;
+    list.forEach(e => { if (CHARGERS.some(c => haversineKm(c, e) < 0.04)) return; // already a curated pin
+      shown++; L.marker([e.lat, e.lng], { icon: L.divIcon({ className: '', html: '<div class="npin">⚡</div>', iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -10] }), title: (e.tags && e.tags.name) || 'Charging station (OSM)', zIndexOffset: -100 })
+        .addTo(nearbyLayer).bindPopup(() => nearbyPopup(e), POPUP_OPTS); });
+    $('#nearbyClear').classList.toggle('hidden', !shown);
+    if (!els.length) setNearbyStatus('No public chargers tagged in this area. Try zooming out a little or check Zapmap.', 'warn');
+    else setNearbyStatus(`Found ${shown} charger${shown === 1 ? '' : 's'}${capped ? ` (first ${NEARBY_MAX} shown – zoom in for more)` : ''}. ${NEARBY_NOTE}`, 'ok');
+  } catch (err) { if (seq === nearbySeq) setNearbyStatus('Charger search failed (' + (err.name === 'AbortError' ? 'timed out' : err.message) + '). Check your connection and try again.', 'err'); }
+  finally { if (seq === nearbySeq) btn.disabled = false; }
+}
 
 // ---------- chargers list ----------
 let filter = 'all';
@@ -102,7 +201,7 @@ function renderChargers() {
     <div class="price">${c.price}p${c.fee ? `<div class="small muted">+£${c.fee} fee</div>` : ''}</div></div>
     <p class="small"><b>${esc(c.speed)}</b><br>${esc(c.priceText)}<br>${esc(c.notes)}</p>
     <p class="small muted">${esc(c.addr)} · ${n.d.toFixed(1)} km from ${esc(n.p.name.replace(' – Kirkintilloch', ''))}</p>
-    <div class="grid2"><button class="btn sm" data-showmap="${c.id}">Show on map</button><a class="btn sm primary" href="${dirUrl(c)}" target="_blank" rel="noopener">Directions</a></div></li>`; }).join('');
+    ${navButtons(c)}<button class="btn sm showmap" data-showmap="${c.id}">Show on map</button></li>`; }).join('');
 }
 $$('[data-filter]').forEach(b => b.addEventListener('click', () => { filter = b.dataset.filter; $$('[data-filter]').forEach(x => x.classList.toggle('on', x === b)); renderChargers(); }));
 $('#sortSel').addEventListener('change', renderChargers);
@@ -314,7 +413,7 @@ function download(name, text, type) { const url = URL.createObjectURL(new Blob([
 $('#icsBtn').addEventListener('click', () => { download('ev3-weekly-charge.ics', icsText(), 'text/calendar'); toast('Calendar file created – open it to add'); });
 
 // ---------- settings / backup ----------
-const SMAP = { sBattery: 'battery', sEff: 'eff', sWinterEff: 'winterEff', sSeason: 'season', sMiles: 'weeklyMiles', sLow: 'low', sTarget: 'target', sPref: 'pref', sTime: 'time' };
+const SMAP = { sBattery: 'battery', sEff: 'eff', sWinterEff: 'winterEff', sSeason: 'season', sMiles: 'weeklyMiles', sLow: 'low', sTarget: 'target', sPref: 'pref', sTime: 'time', sNav: 'nav' };
 function fillSettings() { Object.entries(SMAP).forEach(([id, k]) => $('#' + id).value = state.settings[k]); }
 $('#settingsForm').addEventListener('submit', e => { e.preventDefault();
   Object.entries(SMAP).forEach(([id, k]) => { const el = $('#' + id); state.settings[k] = el.type === 'number' ? parseFloat(el.value) : el.value; });
@@ -337,10 +436,11 @@ $('#resetBtn').addEventListener('click', () => { if (!confirm('Erase all charges
 // ---------- boot ----------
 function renderAll() { renderChargers(); renderHistory(); renderBanner(); if ($('#tab-stats').classList.contains('active')) renderStats(); renderPlan(); }
 $('#cpsNote').textContent = '⚠︎ ' + window.EV3_CPS_NOTE; $('#priceNote').textContent = window.EV3_PRICE_NOTE + ' Pins geocoded via OpenStreetMap / postcodes.io.';
-fillChargerSelect(); fillSettings(); resetLogForm(); initMap(); renderAll();
+fillChargerSelect(); fillSettings();
+$('#sNav').addEventListener('change', e => { state.settings.nav = e.target.value; save(); renderChargers(); if (map) map.closePopup(); toast('Navigation app: ' + e.target.selectedOptions[0].text); }); resetLogForm(); initMap(); renderAll();
 const start = location.hash.slice(1); if (TITLES[start]) showTab(start);
 setInterval(renderBanner, 5 * 60e3);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { renderBanner(); renderPlan(); } });
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
-window.EV3 = { get state() { return state; }, estimateSoc, icsText };
+window.EV3 = { get state() { return state; }, get map() { return map; }, get nearbyLayer() { return nearbyLayer; }, estimateSoc, icsText, appleUrl, googleUrl, searchNearby };
 })();
