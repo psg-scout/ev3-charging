@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EV3 Charging</title>
+<meta name="description" content="Charging planner for a Kia EV3 GT-Line Long Range (81.4 kWh)">
+<meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f7fb" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="EV3">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <h1 id="title">Map</h1>
+  <span class="soc-pill" id="socPill" title="Estimated battery">–%</span>
+</header>
+<div id="dueBanner" class="banner hidden" role="alert"></div>
+
+<main>
+  <!-- MAP -->
+  <section id="tab-map" class="tab active" aria-label="Map">
+    <div id="map"></div>
+    <button id="locateBtn" class="fab" aria-label="Locate me">◎</button>
+    <div class="legend"><span class="dot rapid"></span>Rapid <span class="dot ac"></span>AC <span class="dot place"></span>Places</div>
+  </section>
+
+  <!-- CHARGERS -->
+  <section id="tab-chargers" class="tab" aria-label="Chargers">
+    <div class="note warn" id="cpsNote"></div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Filter">
+        <button data-filter="all" class="on">All</button>
+        <button data-filter="rapid">Rapid DC</button>
+        <button data-filter="ac">AC</button>
+      </div>
+      <select id="sortSel" aria-label="Sort">
+        <option value="price-asc">Price: low → high</option>
+        <option value="price-desc">Price: high → low</option>
+        <option value="name">Name</option>
+      </select>
+    </div>
+    <p class="muted small" id="priceNote"></p>
+    <ul id="chargerList" class="cards"></ul>
+  </section>
+
+  <!-- LOG -->
+  <section id="tab-log" class="tab" aria-label="Log a charge">
+    <form id="logForm" class="card form" autocomplete="off">
+      <h2>Log a charge</h2>
+      <label>Date <input type="date" id="fDate" required></label>
+      <label>Charger <select id="fCharger" required></select></label>
+      <div id="otherFields" class="hidden grid2">
+        <label>Name <input type="text" id="fOtherName" placeholder="Charger name"></label>
+        <label>Price p/kWh <input type="number" id="fOtherPrice" inputmode="decimal" step="0.1" min="0" placeholder="e.g. 60"></label>
+      </div>
+      <div class="grid2">
+        <label>kWh added <input type="number" id="fKwh" inputmode="decimal" step="0.01" min="0" required></label>
+        <label>Cost £ <input type="number" id="fCost" inputmode="decimal" step="0.01" min="0" required></label>
+      </div>
+      <p class="muted small" id="costHint">Cost auto-calculates from price (editable).</p>
+      <div class="grid2">
+        <label>Start % <input type="number" id="fStart" inputmode="numeric" min="0" max="100"></label>
+        <label>End % <input type="number" id="fEnd" inputmode="numeric" min="0" max="100"></label>
+      </div>
+      <label>Odometer (miles) <input type="number" id="fOdo" inputmode="numeric" min="0"></label>
+      <button type="submit" class="btn primary">Save charge</button>
+    </form>
+    <h2 class="section-h">History</h2>
+    <ul id="history" class="cards"></ul>
+  </section>
+
+  <!-- STATS -->
+  <section id="tab-stats" class="tab" aria-label="Stats">
+    <div class="seg" role="group" aria-label="Period">
+      <button data-period="week" class="on">Weekly</button>
+      <button data-period="month">Monthly</button>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="card"><h3 id="chartTitle">Spend per week</h3><canvas id="chart" height="220"></canvas></div>
+    <div class="card"><h3>Breakdown</h3><table class="tbl" id="statTable"></table></div>
+    <p class="muted small">Miles/kWh uses odometer deltas between consecutive charges ÷ kWh added at the later charge (or battery-% used when start/end % are logged).</p>
+  </section>
+
+  <!-- PLAN -->
+  <section id="tab-plan" class="tab" aria-label="Planner">
+    <div class="card center">
+      <div class="gauge"><div class="gauge-fill" id="gaugeFill"></div><span id="gaugeText">–%</span></div>
+      <p id="socDetail" class="muted small"></p>
+      <p><strong>Next charge:</strong> <span id="nextCharge">–</span></p>
+    </div>
+    <form id="manualForm" class="card form">
+      <h3>Update current battery %</h3>
+      <div class="grid2">
+        <label>Current % <input type="number" id="mPct" min="0" max="100" inputmode="numeric" required></label>
+        <label>Odometer (opt.) <input type="number" id="mOdo" min="0" inputmode="numeric"></label>
+      </div>
+      <button class="btn">Set current %</button>
+    </form>
+    <div class="card"><h3>Weekly plan</h3><div id="planText" class="plan"></div></div>
+    <div class="card">
+      <h3>Reminder</h3>
+      <p class="muted small">iPhone web notifications need a push server, so this app shows an in-app “due to charge” banner instead. For a real alert, add a weekly calendar reminder:</p>
+      <button id="icsBtn" class="btn">📅 Add weekly Monday reminder (.ics)</button>
+      <a class="btn ghost" href="calendar/ev3-monday-charge.ics" download>Static .ics (Mon 08:30)</a>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" class="tab" aria-label="Settings">
+    <form id="settingsForm" class="card form">
+      <h2>Car &amp; driving</h2>
+      <label>Usable battery (kWh) <input type="number" id="sBattery" step="0.1" min="10" required></label>
+      <div class="grid2">
+        <label>Efficiency mi/kWh <input type="number" id="sEff" step="0.1" min="1" required></label>
+        <label>Winter mi/kWh <input type="number" id="sWinterEff" step="0.1" min="1" required></label>
+      </div>
+      <label>Season
+        <select id="sSeason"><option value="auto">Auto (winter Nov–Mar)</option><option value="summer">Always normal</option><option value="winter">Always winter</option></select>
+      </label>
+      <label>Weekly miles <input type="number" id="sMiles" min="0" required></label>
+      <div class="grid2">
+        <label>Charge when below % <input type="number" id="sLow" min="5" max="90" required></label>
+        <label>Charge up to % <input type="number" id="sTarget" min="20" max="100" required></label>
+      </div>
+      <div class="grid2">
+        <label>Preferred charger
+          <select id="sPref"></select>
+        </label>
+        <label>Reminder time <input type="time" id="sTime" required></label>
+      </div>
+      <button class="btn primary">Save settings</button>
+    </form>
+    <div class="card">
+      <h2>Backup</h2>
+      <p class="muted small">Data is stored only on this device (localStorage). Export regularly.</p>
+      <button id="exportBtn" class="btn">⬇︎ Export JSON</button>
+      <label class="btn ghost filebtn">⬆︎ Import JSON<input type="file" id="importFile" accept="application/json,.json"></label>
+      <button id="resetBtn" class="btn danger">Erase all data</button>
+    </div>
+    <p class="muted small center">Kia EV3 GT-Line Long Range · 81.4 kWh · v1</p>
+  </section>
+</main>
+
+<nav class="tabbar" role="tablist">
+  <button data-tab="map" class="on" aria-label="Map"><span>🗺️</span>Map</button>
+  <button data-tab="chargers" aria-label="Chargers"><span>🔌</span>Chargers</button>
+  <button data-tab="log" aria-label="Log"><span>➕</span>Log</button>
+  <button data-tab="stats" aria-label="Stats"><span>📊</span>Stats</button>
+  <button data-tab="plan" aria-label="Plan"><span>🔋</span>Plan</button>
+  <button data-tab="settings" aria-label="Settings"><span>⚙️</span>Settings</button>
+</nav>
+<div id="toast" class="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
